@@ -1,0 +1,313 @@
+---
+title: "TBA & Factor Analysis"
+author: "Yakup Tarık AÇAN"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+library(car)
+library(broom)
+library(dplyr)
+library(tidyr)
+library(haven)
+library(readxl)
+library(GGally)
+library("Hmisc")
+library(corrplot)
+library(psych)
+library(factoextra)
+library(corrplot)
+library(matlib)
+```
+
+```{r}
+pizza_marka <- read_excel("Pizza_data.xlsx")
+pizza_marka<-as.data.frame(pizza_marka)
+summary(pizza_marka)
+pizza_marka$fat_cat[pizza_marka$fat < 15.65] <- "DUSUK"
+pizza_marka$fat_cat[pizza_marka$fat >= 15.65 & pizza_marka$fat < 20.3]<- "ORTA"
+pizza_marka$fat_cat[pizza_marka$fat >= 20.3]<- "YUKSEK"
+pizza_marka$brand<-factor(pizza_marka$brand)
+pizza_marka$fat_cat<-factor(pizza_marka$fat_cat)
+summary(pizza_marka)
+```
+
+## KORELASYON MATRİSİNİN İNCELENMESİ
+ Ho: Değişkenler arası anlamlı ilişki yoktur!
+ H1: Değişkenler arası anlamlı ilişki vardır!
+ 0.05 ten küçükse RED!
+ 
+```{r}
+pizza_data<-pizza_marka[,2:7] 
+ggpairs(pizza_data)
+```
+
+```{r}
+rcorr(as.matrix(pizza_data),type="pearson")
+corrplot(cor(pizza_data))
+```
+
+## PCA UYGULANABİLİRLİGİ
+
+Örneklem temel bileşenler için yeterli mi?
+0.5 ten büyük olması beklenir.
+0.5 - 0.6 = kabul edilebilir.
+0.6 - 0.7 = orta düzey
+0.7 - 0.8 = iyi
+0.8 - 0.9 = çok iyi
+0.9 > = mükemmel
+
+değişkenler sağlamadığında analizden çıkardığımızı belirtmeliyiz.
+TEK TEK DEĞERLENDİRİLECEK!
+
+```{r}
+KMO(pizza_data)
+```
+```{r}
+pizza_data<-pizza_marka[,4:6] 
+ggpairs(pizza_data)
+```
+
+```{r}
+rcorr(as.matrix(pizza_data),type="pearson")
+corrplot(cor(pizza_data))
+```
+
+```{r}
+KMO(pizza_data)
+```
+
+
+## Bartlett Küresellik Testi
+
+H0: korelasyon matrisi birim matristir. Belirli değişkenler arası anlamlı ilişki söz konusu değildir.
+H1: korelasyon matrisi birim matris değildir. Belirli değişkenler arası anlamlı ilişki konusudur.
+
+H0 kabul (p-value değerine bakarız)
+korelasyon matrisi birim matristir - anlamlı ilişki söz konusu değildir.
+
+```{r}
+options(scipen = 99)
+cortest.bartlett(cor(pizza_data),nrow(pizza_data))
+```
+
+## TEMEL BİLESENLER ANALİZİ
+
+4 değişkeni 2 değişkene indirebiliyor muyuz?
+özvektörler oluşturuyoruz.
+
+```{r}
+fit.pca <- prcomp(pizza_data, scale=TRUE)
+fit.pca
+head(fit.pca$x)
+tail(fit.pca$x)
+
+```
+
+### Bilesen sayisina karar vermek
+
+iki kıstas söz konusu
+
+1- öz değeri 1' den büyük olanlar (yeterli benimkisi için)
+2- Veri toplam varyansın 2/3(%67) ünü açıklıyor mu? destekliyor
+kümülatif üzerinden inceliyoruz.
+
+```{r}
+summary(fit.pca)  
+(fit.pca$sdev)^2
+```
+
+ya da
+
+kırılımın olduğu yere göre uygun bileşen sayısı belirlenir.
+
+```{r}
+scree <- fviz_eig(fit.pca,
+                  geom = c("bar", "line"),
+                  barfill = "red",
+                  barcolor = "red",
+                  linecolor = "blue")
+scree
+```
+
+İlk iki bileşene karar verildi.
+Temel Bileşenler Denklemleri
+y1 = -0.5732572ash-0.563567sodium+0.4959955carb-0.3285634cal
+y2 = 0.2322481ash-0.2336136sodium-0.5190206carb-0.7887352cal
+
+```{r}
+fit.pca$rotation[,1] 
+```
+
+-Bileşen yüklerini karekök lambda (özdeğerin karekökü) ile çarptığımızda asal temek bileşene götürür. Faktör yükünü elde ederiz.
+
+```{r}
+faktor_yukleri<-t(fit.pca$rotation)*fit.pca$sdev 
+faktor_yukleri
+```
+
+> Skorlandırma ve skorları veriye kaydetme , indexleme
+
+```{r}
+pizza_marka$comp1 =fit.pca$x[,1] 
+pizza_marka$comp2 =fit.pca$x[,2] 
+```
+
+```{r}
+pizza_marka$index=pizza_marka$comp1+pizza_marka$comp2
+indeks<-sort(pizza_marka$index, decreasing = T)
+head(indeks)
+```
+
+aralarındaki açılara göre hangi eksene daha yakınsa o dimention tarafından açıklanır.
+ash, sodium, carb -> dim2
+cal -> dim1
+
+```{r}
+fviz_pca_var(fit.pca,col.var="red", fill.var = "green",
+             repel = TRUE 
+)
+```
+
+# FAKTÖR ANALİZİ
+
+```{r, include=FALSE}
+pizza_marka <- read_excel("Pizza_data.xlsx")
+pizza_marka<-as.data.frame(pizza_marka)
+summary(pizza_marka)
+pizza_marka$fat_cat[pizza_marka$fat < 15.65] <- "DUSUK"
+pizza_marka$fat_cat[pizza_marka$fat >= 15.65 & pizza_marka$fat < 20.3]<- "ORTA"
+pizza_marka$fat_cat[pizza_marka$fat >= 20.3]<- "YUKSEK"
+pizza_marka$brand<-factor(pizza_marka$brand)
+pizza_marka$fat_cat<-factor(pizza_marka$fat_cat)
+summary(pizza_marka)
+```
+
+### KAYIP GÖZLEMLERİN ÇIKARILMASI
+
+```{r}
+pizza_factor=pizza_marka[,2:6]
+pizza_factor=na.omit(pizza_factor)
+```
+
+## KORELASYON MATRİSİNİN İNCELENMESİ
+
+```{r}
+corrplot(cor(pizza_factor))
+korelasyon<-cor(pizza_factor)
+korelasyon
+```
+
+```{r}
+rcorr(as.matrix(pizza_factor),type="pearson")
+```
+
+## Faktor Analizi Uygulanabilirliği
+
+```{r}
+KMO(pizza_factor)
+```
+```{r}
+pizza_factor=pizza_marka[,c(3:6)]
+pizza_factor=na.omit(pizza_factor)
+```
+
+```{r}
+KMO(pizza_factor)
+```
+
+## Bartlett Küresellik Testi
+
+```{r}
+cortest.bartlett(cor(pizza_factor),nrow(pizza_factor))
+```
+
+```{r}
+cortest.bartlett(cor(pizza_factor),nrow(pizza_factor))
+```
+
+
+### Kok Lambda Yaklasimi
+
+```{r}
+fa_kokl<-principal(pizza_factor, nfactors =3, rotate = "none")
+fit.pca2 <- prcomp( ~., pizza_factor, scale=TRUE)
+print(fa_kokl$loadings, digits=3, cutoff=.0, sort=TRUE)
+```
+
+```{r}
+var_oran<-colSums(fa_kokl$loadings[ , ]^2)/9 
+var_oran
+sum(var_oran)
+```
+
+```{r}
+library(factoextra) 
+scree <- fviz_eig(fit.pca2)
+scree
+```
+
+##### Artık korelasyon matrisi
+
+```{r}
+artik_kor<-fa_kokl$residual
+artik_kor
+```
+
+```{r}
+length(artik_kor[abs(artik_kor)<0.05])/72
+```
+
+```{r}
+fa.diagram(fa_kokl)
+```
+
+### Faktor Yuku Grafigi
+
+```{r}
+factor.plot(fa_kokl, labels=rownames(fa_kokl$loadings))
+```
+
+```{r}
+fyuk2=fa_kokl$loadings[,1:2]
+factor.plot(fyuk2, cut=0.5, labels=rownames(fa_kokl$loadings),font=2, cex=0.8)
+```
+
+### Principal Axis Yontemiyle Faktor Analizi
+
+```{r,include=FALSE}
+fsolution <- fa(pizza_factor, nfactors = 1, rotate = "none", fm = "pa") 
+```
+
+```{r}
+print(fsolution$loadings, digits=2, cutoff=.2, sort=TRUE)
+```
+
+```{r,include=FALSE}
+frotate1 <- fa(pizza_factor[,-7], nfactors = 2, rotate = "none", fm = "pa",scores=TRUE) 
+```
+
+```{r}
+print(frotate1$loadings, digits=2, cutoff=.2, sort=TRUE)
+```
+
+```{r,include=FALSE}
+frotate <- fa(pizza_factor[,-7], nfactors = 2, rotate = "varimax", fm = "pa",scores=TRUE) 
+```
+
+```{r}
+print(frotate$loadings, digits=2, cutoff=.2, sort=TRUE)
+```
+
+```{r}
+fa.diagram(frotate)
+```
+
+```{r}
+factor.plot(frotate, labels=rownames(frotate$loadings))
+```
+
